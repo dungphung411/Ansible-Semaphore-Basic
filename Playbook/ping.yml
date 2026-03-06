@@ -1,24 +1,40 @@
 ---
-- name: Test Inventory Connectivity
+- name: Test SSH Connectivity (No Python Required)
   hosts: all
   gather_facts: no
 
   tasks:
-    - name: Ping all hosts
-      ping:
+    - name: Test SSH connection
+      raw: "echo 'SSH OK'"
+      register: ssh_test
+      delegate_to: "{{ inventory_hostname }}"
 
-    - name: Gather basic facts
-      setup:
-        gather_subset:
-          - "!all"
-          - "hardware"
-          - "date_time"
-      register: facts
+    - name: Get hostname & uptime
+      raw: "hostname && uptime -p"
+      register: host_info
+      delegate_to: "{{ inventory_hostname }}"
 
-    - name: Show host info
+    - name: Get IP address
+      raw: "ip addr show | grep 'inet ' | grep -v 127.0.0.1 | awk '{print $2}' | cut -d/ -f1 | head -1 || echo 'No IP'"
+      register: ip_info
+      delegate_to: "{{ inventory_hostname }}"
+
+    - name: Get CPU info
+      raw: "nproc || echo 'CPU check failed'"
+      register: cpu_info
+      delegate_to: "{{ inventory_hostname }}"
+
+    - name: Get memory info
+      raw: 'free -h | grep Mem | awk ''{print "Total:" $2 " Used:" $3 " Free:" $4}'' || echo ''No mem info'''
+      register: mem_info
+      delegate_to: "{{ inventory_hostname }}"
+
+    - name: Summary
       debug:
         msg:
-          - "HOST: {{ ansible_hostname }} | IP: {{ ansible_default_ipv4.address }}"
-          - "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}"
-          - "Uptime: {{ ansible_uptime_seconds }}s | CPU: {{ ansible_processor_vcpus }} cores"
-          - "PING: pong OK!"
+          - "HOST: {{ host_info.stdout | default('N/A') | split('\n')[0] }}"
+          - "UPTIME: {{ host_info.stdout | default('N/A') | regex_replace('.*up ', '') }}"
+          - "IP: {{ ip_info.stdout | default('N/A') }}"
+          - "CPU CORES: {{ cpu_info.stdout | default('N/A') }}"
+          - "MEMORY: {{ mem_info.stdout | default('N/A') }}"
+          - "SSH: {{ 'OK' if ssh_test is succeeded else 'FAILED' }}"
