@@ -2,49 +2,58 @@
 - name: Proxmox Host Status Check
   hosts: all
   become: yes
+  gather_facts: yes
+  vars:
+    summary: []
+
   tasks:
     - name: Get Proxmox version
-      command: pveversion
+      command: pveversion -v
       register: pve_version
-      changed_when: false
-
-    - name: Get Cluster status
-      command: pvecm status
-      register: cluster_status
-      changed_when: false
-      failed_when: false # Might not be clustered
-
-    - name: Get Storage status
-      command: pvesm status
-      register: storage_status
-      changed_when: false
-
-    - name: List Virtual Machines (QM)
-      command: qm list
-      register: vm_list
-      changed_when: false
-
-    - name: List Containers (PCT)
-      command: pct list
-      register: ct_list
-      changed_when: false
-
-    - name: Get Node Resource Usage
-      command: pvesh get /nodes/{{ ansible_hostname }}/status
-      register: node_usage
       changed_when: false
       failed_when: false
 
+    - name: Get Cluster status
+      shell: pvecm status 2>&1 || echo "Not clustered/single node"
+      register: cluster_status
+      changed_when: false
+
+    - name: Get Storage status
+      shell: pvesm status --content images,rootdir,iso,vztmpl --long 2>&1 || echo "No storage or error"
+      register: storage_status
+      changed_when: false
+
+    - name: Get Node resource usage
+      shell: pvesh get /nodes/{{ ansible_hostname }}/status --output-format json 2>/dev/null || echo "{}"
+      register: node_usage
+      changed_when: false
+
+    - name: List Virtual Machines (local node)
+      shell: qm list --output-format json 2>/dev/null || echo "[]"
+      register: vm_list
+      changed_when: false
+
+    - name: List Containers (local node)
+      shell: pct list --output-format json 2>/dev/null || echo "[]"
+      register: ct_list
+      changed_when: false
+
+    - name: Build summary
+      set_fact:
+        summary:
+          - "--- PROXMOX VERSION ---"
+          - "{{ pve_version.stdout_lines | default(['N/A']) | join('\n') }}"
+          - "--- CLUSTER STATUS ---"
+          - "{{ cluster_status.stdout_lines | default(['N/A']) | join('\n') | truncate(20) }}"
+          - "--- STORAGE STATUS ---"
+          - "{{ storage_status.stdout_lines | default(['N/A']) | join('\n') | truncate(30) }}"
+          - "--- NODE USAGE ---"
+          - "{{ (node_usage.stdout | from_json).data | to_nice_yaml(indent=2) | default('N/A') | truncate(40) }}"
+          - "--- VMS ({{ (vm_list.stdout | from_json | length) | default(0) }} ) ---"
+          - "{{ vm_list.stdout | from_json | default([]) | map(attribute='name') | list | to_nice_yaml }}"
+          - "--- CTS ({{ (ct_list.stdout | from_json | length) | default(0) }} ) ---"
+          - "{{ ct_list.stdout | from_json | default([]) | map(attribute='name') | list | to_nice_yaml }}"
+
     - name: Display Status Summary
       debug:
-        msg:
-          - "--- PROXMOX VERSION ---"
-          - "{{ pve_version.stdout }}"
-          - "--- CLUSTER STATUS ---"
-          - "{{ cluster_status.stdout | default('Not a cluster node or command failed') }}"
-          - "--- STORAGE STATUS ---"
-          - "{{ storage_status.stdout }}"
-          - "--- VIRTUAL MACHINES ---"
-          - "{{ vm_list.stdout }}"
-          - "--- CONTAINERS ---"
-          - "{{ ct_list.stdout }}"
+        msg: "{{ summary }}"
