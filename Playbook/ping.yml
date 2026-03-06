@@ -1,40 +1,40 @@
 ---
-- name: Test SSH Connectivity (No Python Required)
+- name: Test SSH No Python No Jinja
   hosts: all
   gather_facts: no
 
   tasks:
-    - name: Test SSH connection
-      raw: "echo 'SSH OK'"
-      register: ssh_test
-      delegate_to: "{{ inventory_hostname }}"
+    - name: SSH connect test
+      raw: "echo '{{ inventory_hostname }} SSH OK'"
+      register: ssh_ok
+      ignore_errors: yes
 
-    - name: Get hostname & uptime
-      raw: "hostname && uptime -p"
-      register: host_info
-      delegate_to: "{{ inventory_hostname }}"
+    - name: Hostname
+      raw: hostname
+      register: hostname
+      ignore_errors: yes
 
-    - name: Get IP address
-      raw: "ip addr show | grep 'inet ' | grep -v 127.0.0.1 | awk '{print $2}' | cut -d/ -f1 | head -1 || echo 'No IP'"
-      register: ip_info
-      delegate_to: "{{ inventory_hostname }}"
+    - name: Uptime
+      raw: uptime -p
+      register: uptime
+      ignore_errors: yes
 
-    - name: Get CPU info
-      raw: "nproc || echo 'CPU check failed'"
-      register: cpu_info
-      delegate_to: "{{ inventory_hostname }}"
+    - name: IP addr
+      raw: "hostname -I | cut -d' ' -f1 || ip route get 1 | awk '{print $7}'"
+      register: ipaddr
+      ignore_errors: yes
 
-    - name: Get memory info
-      raw: 'free -h | grep Mem | awk ''{print "Total:" $2 " Used:" $3 " Free:" $4}'' || echo ''No mem info'''
-      register: mem_info
-      delegate_to: "{{ inventory_hostname }}"
+    - name: CPU cores
+      raw: nproc 2>/dev/null || echo "?"
+      register: cpu
+      ignore_errors: yes
 
-    - name: Summary
+    - name: Memory
+      raw: 'free -m | grep Mem | awk ''{print $2"M total"}'''
+      register: memory
+      ignore_errors: yes
+
+    - name: RESULT
       debug:
-        msg:
-          - "HOST: {{ host_info.stdout | default('N/A') | split('\n')[0] }}"
-          - "UPTIME: {{ host_info.stdout | default('N/A') | regex_replace('.*up ', '') }}"
-          - "IP: {{ ip_info.stdout | default('N/A') }}"
-          - "CPU CORES: {{ cpu_info.stdout | default('N/A') }}"
-          - "MEMORY: {{ mem_info.stdout | default('N/A') }}"
-          - "SSH: {{ 'OK' if ssh_test is succeeded else 'FAILED' }}"
+        msg: "{{ ssh_ok.stdout }} | {{ hostname.stdout }} | {{ uptime.stdout }} | IP:{{ ipaddr.stdout }} | CPU:{{ cpu.stdout }} | MEM:{{ memory.stdout | default('N/A') }}"
+      when: ssh_ok is succeeded
