@@ -36,14 +36,14 @@
 
     - name: Display Status Summary
       debug:
-      msg:
-        - "--- PROXMOX VERSION ---"
-        - "{{ pve_version.stdout }}"
-        - "--- CLUSTER STATUS ---"
-        - "{{ cluster_status.stdout | default('Not a cluster node or command failed') }}"
-        - "--- STORAGE STATUS ---"
-        - "{{ storage_status.stdout }}"
-        - "--- VIRTUAL MACHINES ---"
-        - "{{ vm_list.stdout }}"
-        - "--- CONTAINERS ---"
-        - "{{ ct_list.stdout }}"
+        msg:
+          - "--- PROXMOX VERSION ---"
+          - "{{ pve_version.stdout }}"
+          - "--- CLUSTER STATUS ---"
+          - "{{ cluster_status.stdout | default('Not a cluster node or command failed') }}"
+          - "--- STORAGE STATUS ---"
+          - "{{ storage_status.stdout }}"
+          - "--- VIRTUAL MACHINES ---"
+          - "{{ vm_list.stdout }}"
+          - "--- CONTAINERS ---"
+          - "{{ ct_list.stdout }}"

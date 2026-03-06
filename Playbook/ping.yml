@@ -1,0 +1,24 @@
+---
+- name: Test Inventory Connectivity
+  hosts: all
+  gather_facts: no
+
+  tasks:
+    - name: Ping all hosts
+      ping:
+
+    - name: Gather basic facts
+      setup:
+        gather_subset:
+          - "!all"
+          - "hardware"
+          - "date_time"
+      register: facts
+
+    - name: Show host info
+      debug:
+        msg:
+          - "HOST: {{ ansible_hostname }} | IP: {{ ansible_default_ipv4.address }}"
+          - "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Uptime: {{ ansible_uptime_seconds }}s | CPU: {{ ansible_processor_vcpus }} cores"
+          - "PING: pong OK!"
