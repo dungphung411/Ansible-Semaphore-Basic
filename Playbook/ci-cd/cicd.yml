@@ -1,0 +1,35 @@
+---
+- name: CI/CD Playbook to run shell scripts
+  hosts: all
+  become: yes
+  tasks:
+    - name: Ensure ci-cd directory exists on remote host
+      file:
+        path: /tmp/ci-cd
+        state: directory
+        mode: "0755"
+
+    - name: Copy shell scripts to remote host
+      copy:
+        src: "{{ item }}"
+        dest: "/tmp/ci-cd/{{ item | basename }}"
+        mode: "0755"
+      loop:
+        - install_net_tools.sh
+        - check_ip.sh
+
+    - name: Run install_net_tools.sh
+      command: /tmp/ci-cd/install_net_tools.sh
+      register: install_result
+
+    - name: Show install output
+      debug:
+        var: install_result.stdout
+
+    - name: Run check_ip.sh
+      command: /tmp/ci-cd/check_ip.sh
+      register: check_result
+
+    - name: Show check output
+      debug:
+        var: check_result.stdout

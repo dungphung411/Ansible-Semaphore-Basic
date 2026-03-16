@@ -1,0 +1,51 @@
+---
+- name: Check Docker status and health
+  hosts: all
+  become: yes
+  tasks:
+    - name: Check if Docker is installed
+      command: docker --version
+      register: docker_version
+      ignore_errors: yes
+
+    - name: Fail if Docker is not installed
+      fail:
+        msg: "Docker is not installed on the system."
+      when: docker_version.rc != 0
+
+    - name: Display Docker version
+      debug:
+        msg: "Docker version: {{ docker_version.stdout }}"
+
+    - name: Check Docker service status
+      ansible.builtin.systemd:
+        name: docker
+      register: docker_service_status
+
+    - name: Display Docker service status
+      debug:
+        msg: "Docker service state: {{ docker_service_status.status.ActiveState | default('Unknown') }}"
+
+    - name: Get Docker info
+      command: docker info
+      register: docker_info
+      changed_when: false
+
+    - name: Display Docker info (Summary)
+      debug:
+        msg:
+          - "Containers: {{ docker_info.stdout | regex_search('Containers: (\\d+)', '\\1') | first | default('N/A') }}"
+          - "Running: {{ docker_info.stdout | regex_search('Running: (\\d+)', '\\1') | first | default('N/A') }}"
+          - "Paused: {{ docker_info.stdout | regex_search('Paused: (\\d+)', '\\1') | first | default('N/A') }}"
+          - "Stopped: {{ docker_info.stdout | regex_search('Stopped: (\\d+)', '\\1') | first | default('N/A') }}"
+          - "Server Version: {{ docker_info.stdout | regex_search('Server Version: (.*)', '\\1') | first | default('N/A') }}"
+
+    - name: Check Docker containers
+      command: >
+        docker ps --format "{% raw %}ID: {{.ID}} | Image: {{.Image}} | Status: {{.Status}} | Name: {{.Names}}{% endraw %}"
+      register: docker_containers
+      changed_when: false
+
+    - name: Display running containers
+      debug:
+        msg: "{{ docker_containers.stdout_lines }}"

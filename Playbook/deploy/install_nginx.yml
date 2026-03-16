@@ -1,0 +1,41 @@
+---
+- name: Cài đặt và kiểm tra Nginx (Install and verify Nginx)
+  hosts: all
+  become: yes
+  tasks:
+    - name: Cập nhật cache của gói (Update apt cache)
+      ansible.builtin.apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Cài đặt Nginx (Install Nginx)
+      ansible.builtin.package:
+        name: nginx
+        state: present
+
+    - name: Đảm bảo Nginx đang chạy và được bật (Ensure Nginx is running and enabled)
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Kiểm tra trạng thái dịch vụ Nginx (Check Nginx service status)
+      ansible.builtin.command: systemctl status nginx
+      register: nginx_status
+      changed_when: false
+
+    - name: Hiển thị trạng thái Nginx (Display Nginx status)
+      ansible.builtin.debug:
+        msg: "{{ nginx_status.stdout_lines[0:5] }}" # Show first 5 lines of status
+
+    - name: Kiểm tra phản hồi HTTP từ localhost (Verify HTTP response from localhost)
+      ansible.builtin.uri:
+        url: http://localhost
+        status_code: 200
+      register: http_check
+      ignore_errors: yes
+
+    - name: Thông báo kết quả kiểm tra (Report check result)
+      ansible.builtin.debug:
+        msg: "Nginx đang hoạt động tốt! (Nginx is working fine!)"
+      when: http_check.status == 200
