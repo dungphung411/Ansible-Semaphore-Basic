@@ -7,7 +7,7 @@ repmgr_conf_dir: "/etc/repmgr/{{ psql_version }}"
 repmgr_log_dir: "/etc/repmgr/{{ psql_version }}/log"
 
 #postgresql
-psql_version: 13
+psql_version: 17.9
 psql_default_dir: "/var/lib/postgresql/{{ psql_version }}/main"
 psql_conf_dir: "/etc/postgresql/{{ psql_version }}/main"
 psql_bin_dir: "/usr/lib/postgresql/{{ psql_version }}/bin"
@@ -31,7 +31,7 @@ barman_backup_dir: "/backup/{{ org_name }}/{{ db_type }}"
 
 #option yes/no
 isbackup: "no"
-org_name: XPLAT-ORG
+org_name: CSC-ORG
 cluster_id: 12345
 cluster_name: postgresql
 db_type: postgresql
