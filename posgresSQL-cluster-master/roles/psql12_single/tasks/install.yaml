@@ -40,10 +40,10 @@
   delay: 10
   register: result
   until: result.rc == 0
-  when:
-  - p.stat is defined
-  - p.stat.exists is defined
-  - not p.stat.exists
+  # when:
+  # - p.stat is defined
+  # - p.stat.exists is defined
+  # - not p.stat.exists
 
 
 # Chờ một chút sau khi install để systemd/cluster scripts ổn định trước khi thao tác tiếp
