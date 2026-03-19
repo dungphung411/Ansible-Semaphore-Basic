@@ -1,6 +1,6 @@
 ---
 
-- hosts: master
+- hosts: test1
   become: yes
   gather_facts: yes
   roles:
@@ -13,18 +13,18 @@
        when: 
          - iscluster == 'no'
 
-- hosts: nodes
-  become: yes
-  gather_facts: yes
-  roles:
+# - hosts: nodes
+#   become: yes
+#   gather_facts: yes
+#   roles:
 
-     - name: harderning_ubuntu_20.04
-       when: 
-         - iscluster == 'yes'
+#      - name: harderning_ubuntu_20.04
+#        when: 
+#          - iscluster == 'yes'
 
-     - name: psql12_cluster
-       when: 
-         - iscluster == 'yes'
+#      - name: psql12_cluster
+#        when: 
+#          - iscluster == 'yes'
 
 - hosts: all
   become: yes
