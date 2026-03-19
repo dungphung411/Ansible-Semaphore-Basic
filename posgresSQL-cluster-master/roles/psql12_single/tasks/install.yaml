@@ -1,43 +1,110 @@
 ---
 
+
+# Copy file từ role đến /opt trong máy thực thi
 - name: copy file 
   copy:
     src: ./
     dest: /opt
 
+
+# Install python3-pip và psycopg2-binary
 - name: install python3-pip
   shell: "{{ item }}"
   with_items:
     - apt -qq install -y python3-pip
     - pip3 install psycopg2-binary
 
+
+# Kiểm tra PostgreSQL đã được khởi tạo chưa
 - name: Check if PostgreSQL database is initialized.
   stat:
     path: "{{ psql_data_dir }}/postmaster.opts"
   register: p
 
-- name: Check if PostgreSQL database is initialized.
-  stat:
-    path: "{{ psql_data_dir }}/postmaster.opts"
-  register: p
 
-- name: Install postgresql as default
-  shell: |
-    cd /opt/psql_{{ psql_version }}
-    DEBIAN_FRONTEND=noninteractive apt install --allow-downgrades -y ./*.deb
-  retries: 5
-  delay: 10
-  register: result
-  until: result.rc == 0
+# (Lưu trữ) Cài đặt PostgreSQL theo gói offline (deb ở /opt/psql_{{ psql_version }})
+# - name: Install postgresql as default (offline)
+#   shell: |
+#     cd /opt/psql_{{ psql_version }}
+#     DEBIAN_FRONTEND=noninteractive apt install --allow-downgrades -y ./*.deb
+#   retries: 5
+#   delay: 10
+#   register: result
+#   until: result.rc == 0
+#   when:
+#     - p.stat.exists == False
+
+# Cài đặt PostgreSQL theo kiểu có mạng (PGDG repo) cho Ubuntu 24.04 (noble)
+# Theo hướng dẫn: https://www.postgresql.org/download/linux/ubuntu/
+# Cài các gói prerequisite để add repo PGDG và quản lý repo thuận tiện
+- name: Install prerequisites for PGDG repository (Ubuntu noble)
+  apt:
+    update_cache: yes
+    name:
+      - curl
+      - ca-certificates
+      - postgresql-common
+    state: present
   when:
     - p.stat.exists == False
 
+
+# Tạo thư mục chứa key của PGDG (đúng theo layout postgresql-common trên Ubuntu)
+- name: Ensure PGDG key directory exists (Ubuntu noble)
+  file:
+    path: /usr/share/postgresql-common/pgdg
+    state: directory
+    mode: '0755'
+  when:
+    - p.stat.exists == False
+
+
+# Tải public signing key để apt xác thực package từ PGDG
+- name: Download PGDG repository signing key (Ubuntu noble)
+  get_url:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    dest: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+    mode: '0644'
+    force: false
+  when:
+    - p.stat.exists == False
+
+# Thêm PGDG repo vào apt sources (kèm signed-by để pin key đúng file)
+- name: Add PGDG apt repository list (Ubuntu noble)
+  copy:
+    dest: /etc/apt/sources.list.d/pgdg.list
+    mode: '0644'
+    content: "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main\n"
+  when:
+    - p.stat.exists == False
+
+
+# Cài postgresql server/client theo version yêu cầu từ PGDG (có retry để tránh lỗi mạng tạm thời)
+- name: Install PostgreSQL from PGDG repo (online) (Ubuntu noble)
+  apt:
+    update_cache: yes
+    name:
+      - "postgresql-{{ psql_version }}"
+      - "postgresql-client-{{ psql_version }}"
+    state: present
+  register: result
+  retries: 5
+  delay: 10
+  until: result is succeeded
+  when:
+    - p.stat.exists == False
+    - ansible_distribution == 'Ubuntu'
+    - ansible_distribution_release == 'noble'
+
+# Chờ một chút sau khi install để systemd/cluster scripts ổn định trước khi thao tác tiếp
 - name: Sleep for 5 seconds and continue with play
   wait_for:
     timeout: 5
   when:
     - p.stat.exists == False
 
+# Restart postgresql sau khi cài để đảm bảo service + cluster mặc định được tạo xong (nếu có)
 - name: restart postgresql after install
   service:
     name: postgresql
@@ -46,6 +113,7 @@
   when:
     - p.stat.exists == False
 
+# Dừng service để chuẩn bị tạo/di chuyển PGDATA theo biến psql_data_dir và initdb thủ công
 - name: Stop postgresql service
   service:
     name: postgresql
@@ -54,6 +122,7 @@
   when:
     - p.stat.exists == False
 
+# Tạo thư mục data (PGDATA) và set owner/group/mode chuẩn cho user postgres
 - name: Create postgresql data directory
   file:
     path: "{{ item }}"
@@ -66,11 +135,13 @@
   when:
     - p.stat.exists == False
 
+# Thêm public key vào authorized_keys để user postgres có thể SSH (phục vụ replication/backup/automation)
 - name: Deploy SSH authorized_key
   authorized_key:
     user: postgres
     key: "{{ lookup('file', 'files/ssh_key/id_rsa.pub') }}"
 
+# Copy private key cho user postgres (để SSH non-interactive tới các node/host khác)
 - name: Copy ssh keys
   copy:
     src: files/ssh_key/id_rsa
@@ -79,9 +150,10 @@
     group: postgres
     mode: 0400
 
+# Khởi tạo cluster database (initdb/pg_ctl init) trong PGDATA mục tiêu
 - name: Initialize database
   shell: "{{ item }}"
-  become: yes
+  become: true
   become_user: postgres
   with_items:
     - "{{ psql_bin_dir }}/pg_ctl init"
@@ -92,6 +164,7 @@
   when:
     - p.stat.exists == False
 
+# Deploy các file cấu hình PostgreSQL (postgresql.conf/pg_hba.conf/custom.conf...) từ templates
 - name: Deploy pg_config files
   template:
     src: "{{ item.src }}"
@@ -104,27 +177,32 @@
     label: "{{ item.path }}"
   when: item.state == 'file'
 
+# Cài unit systemd `postgresql.service` (custom) để service chạy theo cấu hình/paths của role
 - name: copy postgresql.service
   template:
     src: postgresql.service
     dest: /lib/systemd/system/postgresql.service
 
+# Reload systemd để nhận unit file vừa thay đổi
 - name: daemon reload service
   service:
     name: postgresql
     daemon_reload: yes
 
+# Start postgresql sau khi đã initdb + deploy config + unit systemd
 - name: Start postgresql service
   service:
     name: postgresql
     enabled: no
     state: started
 
+# Chờ đến khi PostgreSQL lắng nghe port sẵn sàng nhận kết nối
 - wait_for:
     host: "{{ ansible_host }}"
     port: "{{ psql_port }}"
     state: started
 
+# Thêm psql bin directory vào PATH của user postgres để dùng psql/pg_ctl không cần gõ full path
 - name: Adding the path in the bashrc files
   become_user: postgres
   lineinfile: 
@@ -134,12 +212,14 @@
     insertafter: 'EOF' 
     state: present
 
+# Nạp lại profile để PATH có hiệu lực trong session hiện tại (cho các task phía sau nếu cần)
 - name: Source Profile
   become_user: postgres
   shell: source ~postgres/.profile
   args:
     executable: /bin/bash
 
+# Tạo user admin PostgreSQL (role) để quản trị/ứng dụng đăng nhập
 - name: Create admin user
   become_user: postgres
   postgresql_user:
@@ -150,6 +230,7 @@
     password: "{{ psql_administrator_password }}"
     role_attr_flags: "{{ psql_administrator_role }}"
 
+# Tạo database mặc định cho admin (owner = admin user)
 - name: Create administrator database
   become_user: postgres
   postgresql_db:

@@ -7,7 +7,7 @@ repmgr_conf_dir: "/etc/repmgr/{{ psql_version }}"
 repmgr_log_dir: "/etc/repmgr/{{ psql_version }}/log"
 
 #postgresql
-psql_version: 17.9
+psql_version: 18
 psql_default_dir: "/var/lib/postgresql/{{ psql_version }}/main"
 psql_conf_dir: "/etc/postgresql/{{ psql_version }}/main"
 psql_bin_dir: "/usr/lib/postgresql/{{ psql_version }}/bin"
@@ -35,7 +35,7 @@ org_name: CSC-ORG
 cluster_id: 12345
 cluster_name: postgresql
 db_type: postgresql
-iscluster: "yes"
+iscluster: "no"
 number_of_backup: 10
 
 #management psql
