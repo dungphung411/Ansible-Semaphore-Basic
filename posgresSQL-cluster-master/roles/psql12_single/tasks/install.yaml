@@ -92,15 +92,16 @@
   when:
     - p.stat.exists == False
 
-- name: Copy pg_config file
+- name: Deploy pg_config files
   template:
     src: "{{ item.src }}"
-    dest: "{{ psql_conf_dir }}/{{ item.path | regex_replace('\\.j2$', '') }}"
-    force: yes
+    dest: "{{ pg_config_base_dir }}/{{ item.path | basename }}"  
     owner: postgres
     group: postgres
-    mode: 0644
-  with_filetree: '{{ role_path }}/templates/pg_config/'
+    mode: '0644'
+  loop: "{{ query('community.general.filetree', role_path ~ '/templates/pg_config/') }}"
+  loop_control:
+    label: "{{ item.path }}"
   when: item.state == 'file'
 
 - name: copy postgresql.service
