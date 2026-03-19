@@ -8,6 +8,16 @@
      - name: harderning_ubuntu_20.04
        when: 
          - iscluster == 'no'
+     - name: Install postgresql as default (offline)
+       shell: |
+        cd /opt/psql_{{ psql_version }}
+        DEBIAN_FRONTEND=noninteractive apt install --allow-downgrades -y ./*.deb
+        systemctl daemon-reload
+       retries: 5
+       delay: 10
+       register: result
+       until: result.rc == 0
+        
 
      - name: psql12_single
        when: 
