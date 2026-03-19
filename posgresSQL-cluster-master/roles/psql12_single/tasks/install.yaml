@@ -28,11 +28,7 @@
     path: "{{ psql_data_dir }}/postmaster.opts"
   register: p
 
-- name: DEBUG p.stat
-  debug:
-    var: p.stat
-  when:
-    - p is defined  
+
 
 
 #(Lưu trữ) Cài đặt PostgreSQL theo gói offline (deb ở /opt/psql_{{ psql_version }})
@@ -45,7 +41,9 @@
   register: result
   until: result.rc == 0
   when:
-    - p.stat.exists == False
+  - p.stat is defined
+  - p.stat.exists is defined
+  - not p.stat.exists
 
 
 # Chờ một chút sau khi install để systemd/cluster scripts ổn định trước khi thao tác tiếp
