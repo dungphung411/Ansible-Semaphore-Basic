@@ -1,0 +1,159 @@
+---
+
+- name: copy file 
+  copy:
+    src: ./
+    dest: /opt
+
+- name: install python3-pip
+  shell: "{{ item }}"
+  with_items:
+    - apt -qq install -y python3-pip
+    - pip3 install psycopg2-binary
+
+- name: Check if PostgreSQL database is initialized.
+  stat:
+    path: "{{ psql_data_dir }}/postmaster.opts"
+  register: p
+
+- name: Check if PostgreSQL database is initialized.
+  stat:
+    path: "{{ psql_data_dir }}/postmaster.opts"
+  register: p
+
+- name: Install postgresql as default
+  shell: |
+    cd /opt/psql_{{ psql_version }}
+    DEBIAN_FRONTEND=noninteractive apt install --allow-downgrades -y ./*.deb
+  retries: 5
+  delay: 10
+  register: result
+  until: result.rc == 0
+  when:
+    - p.stat.exists == False
+
+- name: Sleep for 5 seconds and continue with play
+  wait_for:
+    timeout: 5
+  when:
+    - p.stat.exists == False
+
+- name: restart postgresql after install
+  service:
+    name: postgresql
+    enabled: no
+    state: restarted
+  when:
+    - p.stat.exists == False
+
+- name: Stop postgresql service
+  service:
+    name: postgresql
+    enabled: no
+    state: stopped
+  when:
+    - p.stat.exists == False
+
+- name: Create postgresql data directory
+  file:
+    path: "{{ item }}"
+    state: directory
+    group: postgres
+    owner: postgres
+    mode: 0750
+  with_items:
+         - "{{ psql_data_dir }}"
+  when:
+    - p.stat.exists == False
+
+- name: Deploy SSH authorized_key
+  authorized_key:
+    user: postgres
+    key: "{{ lookup('file', 'files/ssh_key/id_rsa.pub') }}"
+
+- name: Copy ssh keys
+  copy:
+    src: files/ssh_key/id_rsa
+    dest: ~postgres/.ssh/id_rsa
+    owner: postgres
+    group: postgres
+    mode: 0400
+
+- name: Initialize database
+  shell: "{{ item }}"
+  become: yes
+  become_user: postgres
+  with_items:
+    - "{{ psql_bin_dir }}/pg_ctl init"
+  args:
+    executable: /bin/bash
+  environment:
+    PGDATA: "{{ psql_data_dir }}"
+  when:
+    - p.stat.exists == False
+
+- name: Copy pg_config file
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ psql_conf_dir }}/{{ item.path | regex_replace('\\.j2$', '') }}"
+    force: yes
+    owner: postgres
+    group: postgres
+    mode: 0644
+  with_filetree: '{{ role_path }}/templates/pg_config/'
+  when: item.state == 'file'
+
+- name: copy postgresql.service
+  template:
+    src: postgresql.service
+    dest: /lib/systemd/system/postgresql.service
+
+- name: daemon reload service
+  service:
+    name: postgresql
+    daemon_reload: yes
+
+- name: Start postgresql service
+  service:
+    name: postgresql
+    enabled: no
+    state: started
+
+- wait_for:
+    host: "{{ ansible_host }}"
+    port: "{{ psql_port }}"
+    state: started
+
+- name: Adding the path in the bashrc files
+  become_user: postgres
+  lineinfile: 
+    dest: ~postgres/.profile
+    create: yes
+    line: 'export PATH=$PATH:{{ psql_bin_dir }}' 
+    insertafter: 'EOF' 
+    state: present
+
+- name: Source Profile
+  become_user: postgres
+  shell: source ~postgres/.profile
+  args:
+    executable: /bin/bash
+
+- name: Create admin user
+  become_user: postgres
+  postgresql_user:
+    port: "{{ psql_port }}"
+    state: present
+    name: "{{ psql_administrator_username }}"
+    encrypted: yes
+    password: "{{ psql_administrator_password }}"
+    role_attr_flags: "{{ psql_administrator_role }}"
+
+- name: Create administrator database
+  become_user: postgres
+  postgresql_db:
+    port: "{{ psql_port }}"
+    state: present
+    name: "{{ psql_administrator_dbname }}"
+    template: "template1"
+    owner: "{{ psql_administrator_username }}"

@@ -1,0 +1,9 @@
+[{{ cluster_name}}.{{ cluster_id }}]
+description = "Main PostgreSQL server"
+ssh_command = ssh -o StrictHostKeyChecking=no postgres@{{ my_vip }}
+conninfo = host={{ my_vip }} user=streaming_barman dbname=postgres
+streaming_conninfo = host={{ my_vip }} user=streaming_barman dbname=postgres
+backup_method = postgres
+streaming_archiver = on
+slot_name = barman
+retention_policy: REDUNDANCY {{ number_of_backup }}

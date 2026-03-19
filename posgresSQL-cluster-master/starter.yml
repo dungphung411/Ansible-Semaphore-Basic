@@ -1,0 +1,39 @@
+---
+
+- hosts: master
+  become: yes
+  gather_facts: yes
+  roles:
+
+     - name: harderning_ubuntu_20.04
+       when: 
+         - iscluster == 'no'
+
+     - name: psql12_single
+       when: 
+         - iscluster == 'no'
+
+- hosts: nodes
+  become: yes
+  gather_facts: yes
+  roles:
+
+     - name: harderning_ubuntu_20.04
+       when: 
+         - iscluster == 'yes'
+
+     - name: psql12_cluster
+       when: 
+         - iscluster == 'yes'
+
+- hosts: all
+  become: yes
+  gather_facts: no
+  roles:
+
+     - name: barman_backup
+       when: 
+         - isbackup == 'yes'
+         - inventory_hostname in groups['backup']
+       tags:
+         - backup

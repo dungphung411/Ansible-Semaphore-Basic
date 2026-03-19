@@ -1,0 +1,9 @@
+---
+
+- import_tasks: install.yaml
+  tags:
+    - barman_install
+
+- import_tasks: barman_config.yaml
+  tags:
+    - barman_config

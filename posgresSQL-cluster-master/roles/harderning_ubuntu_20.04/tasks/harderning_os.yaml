@@ -1,0 +1,25 @@
+---
+
+## Regenerate id
+- name: Regenerate id
+  shell: |
+    rm -fr /etc/machine-id
+    dbus-uuidgen --ensure=/etc/machine-id
+    apt update -y
+
+- name: Disable ufw Services
+  service:
+    name: ufw
+    state: stopped  
+    enabled: no
+
+- name: Disable IPv6 with sysctl
+  lineinfile:
+    dest: /etc/sysctl.conf
+    regexp: "net.ipv6"
+    state: absent
+
+- name: allow ubuntu listen virtual IP 
+  sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: 1

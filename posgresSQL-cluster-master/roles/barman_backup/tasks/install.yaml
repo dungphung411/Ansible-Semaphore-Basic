@@ -1,0 +1,31 @@
+---
+
+- name: Check if barman is initialized.
+  stat:
+    path: /etc/barman.conf
+  register: p
+
+- name: Update apt-get repo and cache
+  shell: |
+    apt update -y
+  when:
+    - p.stat.exists == False
+
+- name: copy file
+  copy:
+    src: ./
+    dest: /opt
+  when:
+    - p.stat.exists == False
+
+- name: Install postgresql client
+  shell: |
+    cd /opt/psql_{{ psql_version }}
+    DEBIAN_FRONTEND=noninteractive apt install -y ./*.deb
+  retries: 5
+  delay: 10
+  register: result
+  until: result.rc == 0
+  when:
+    - p.stat.exists == False
+

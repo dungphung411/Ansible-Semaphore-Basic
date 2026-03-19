@@ -1,0 +1,169 @@
+---
+
+- name: make sure home directory existed
+  file:
+    state: directory
+    path: "{{ barman_backup_dir }}"
+    owner: barman
+    group: barman
+    mode: 0775
+    recurse: yes
+
+- name: Write .pgpass for barman user
+  copy:
+    content: |
+      *:*:*:barman:{{ psql_barman_password }}
+      *:*:*:streaming_barman:{{ psql_streaming_barman }}
+    dest: ~barman/.pgpass
+    owner: barman
+    group: barman
+    mode: 0400
+
+- name: Write /etc/barman.conf
+  become_user: root
+  template:
+    src: barman.conf.j2
+    dest: /etc/barman.conf
+    owner: barman
+    group: barman
+    mode: 0400
+
+- name: Adding the path in the bashrc files
+  become_user: barman
+  lineinfile:
+    dest: ~barman/.profile
+    create: yes
+    line: 'export PATH=$PATH:{{ psql_bin_dir }}'
+    insertafter: 'EOF'
+    state: present
+
+- name: Source Profile
+  become_user: barman
+  shell: source ~barman/.profile
+  args:
+    executable: /bin/bash
+
+- name: Deploy SSH authorized_key
+  authorized_key:
+    user: barman
+    key: "{{ lookup('file', 'files/ssh_key/id_rsa.pub') }}"
+
+- name: Copy ssh keys
+  copy:
+    src: files/ssh_key/id_rsa
+    dest: ~barman/.ssh/id_rsa
+    owner: barman
+    group: barman
+    mode: 0400
+
+- name: copy pg.conf
+  template:
+    src: pg_single.conf.j2
+    dest: /etc/barman.d/{{ cluster_name }}.{{ cluster_id}}.conf
+    owner: barman
+    group: barman
+    mode: 0644
+  when:
+    - iscluster == "no"
+
+- name: copy pg.conf
+  template:
+    src: pg_cluster.conf.j2
+    dest: /etc/barman.d/{{ cluster_name }}.{{ cluster_id}}.conf
+    owner: barman
+    group: barman
+    mode: 0644
+  when:   
+    - iscluster == "yes"
+
+- name: Transfer file init barman and set schedule backup full
+  template: 
+    src: init_barman.sh.j2
+    dest: /tmp/init_barman.sh
+    owner: barman
+    group: barman
+    mode: 0755
+
+- name: copy remove_duplicate_config.sh.j2
+  become_user: root
+  template:
+    src: remove_dupliate_config.sh.j2
+    dest: /tmp/remove_dupliate_config.sh
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Execute remove_duplicate_config.sh file
+  become_user: root
+  command: 'bash /tmp/remove_dupliate_config.sh'
+
+- name: reload daemon
+  command: systemctl daemon-reload
+
+- name: copy backup_full.sh file
+  template:
+    src: full_backup_single.sh.j2
+    dest: /var/lib/barman/full_backup_{{ cluster_name }}.{{ cluster_id}}.sh
+    owner: barman
+    group: barman
+    mode: 0750
+  when: iscluster == "no"
+  tags:
+    - crontab
+
+- name: copy backup_full.sh file
+  template:
+    src: full_backup_cluster.sh.j2
+    dest: /var/lib/barman/full_backup_{{ cluster_name }}.{{ cluster_id}}.sh
+    owner: barman
+    group: barman
+    mode: 0750
+  when: iscluster == "yes"
+  tags:
+    - crontab
+
+- name: Delete content & directory
+  file:
+    state: absent
+    path: "{{ barman_backup_dir }}/{{ cluster_name }}.{{ cluster_id }}"
+  ignore_errors: yes
+
+- name: Check if master existed and vip enabled 
+  command: psql -h {{ my_vip }} -p {{ psql_port }} -U barman postgres  -t -c "select pg_is_in_recovery()"
+  become_user: barman
+  when: iscluster == "yes"
+
+- name: stop barman
+  command: pkill -f barman
+  ignore_errors: yes
+
+- name: Execute barman file
+  become_user: barman
+  shell: 'bash init_barman.sh > /tmp/log_init.txt 2>&1'
+  args:
+    chdir: /tmp
+  tags: test123
+
+- name: set backup full schedule
+  cron:
+    user: barman
+    name: pgbarman_{{ cluster_name }}.{{ cluster_id }}
+    minute: "{{ cron_minute }}"
+    hour: "{{ cron_hour }}"
+    weekday: "{{ cron_weekday }}"
+    job: "/var/lib/barman/full_backup_{{ cluster_name }}.{{ cluster_id}}.sh"
+    state: present
+  when: iscluster == "yes"
+
+- name: set backup full schedule
+  cron:
+    user: barman
+    name: pgbarman_{{ cluster_name }}.{{ cluster_id }}
+    minute: "{{ cron_minute }}"
+    hour: "{{ cron_hour }}"
+    day: '{{ cron_day }}'
+    weekday: "{{ cron_weekday }}"
+    month: '{{ cron_month }}'
+    job: "/var/lib/barman/full_backup_{{ cluster_name }}.{{ cluster_id}}.sh"
+    state: present
+  when: iscluster == "no"

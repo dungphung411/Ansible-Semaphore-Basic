@@ -1,0 +1,10 @@
+#!/bin/bash
+cd /etc/barman.d
+a=$(sed '3!d' {{ cluster_name }}.{{ cluster_id }}.conf)
+for file in `ls -I {{ cluster_name }}.{{ cluster_id }}.conf | xargs -n 1 basename`; do
+        b=$(sed '3!d' $file)
+        if [[ $a == $b ]]
+        then
+                rm -rf $file;
+        fi
+done

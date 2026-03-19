@@ -1,0 +1,11 @@
+##!/bin/bash
+export PATH=$PATH:/usr/lib/postgresql/12/bin
+barman receive-wal --stop {{ cluster_name }}.{{ cluster_id }} || true
+barman receive-wal --reset {{ cluster_name }}.{{ cluster_id }} || true
+barman cron
+timeout 120 barman receive-wal {{ cluster_name }}.{{ cluster_id }}
+cd /etc/barman.d
+for i in `ls *.conf | xargs -n 1 basename`; do
+        w=${i%%.conf*}; barman switch-xlog --force --archive-timeout 120 --archive $w
+done
+bash /var/lib/barman/full_backup_{{ cluster_name }}.{{ cluster_id }}.sh

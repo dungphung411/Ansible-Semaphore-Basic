@@ -1,0 +1,20 @@
+---
+
+- name: Create barman user
+  become_user: postgres
+  postgresql_user:
+    name: barman
+    password: "{{ psql_barman_password }}"
+    state: present
+    encrypted: true
+    role_attr_flags: SUPERUSER
+
+- name: Create streaming_barman user
+  become_user: postgres
+  postgresql_user:
+    name: streaming_barman
+    password: "{{ psql_streaming_barman }}"
+    state: present
+    encrypted: true
+    role_attr_flags: SUPERUSER,REPLICATION
+

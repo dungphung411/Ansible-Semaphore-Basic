@@ -1,0 +1,3 @@
+---
+- import_tasks: install.yaml
+- import_tasks: create_barman_user.yaml

@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+set -x
+export PATH=$PATH:{{ psql_bin_dir }}
+#### backup full
+barman backup {{ cluster_name }}.{{ cluster_id}} --wait --wait-timeout 60 > /tmp/backup_full_log.txt 2>&1
+####grep folder name of backup full
+A=$(cat /tmp/backup_full_log.txt | grep 'Starting backup copy via pg_basebackup')
+B=$(echo $A | awk '{print $NF}')
+mkdir -p {{ barman_backup_dir }}/{{ cluster_name }}.{{ cluster_id}}/backup_configure/$B
+scp -o  StrictHostKeyChecking=no postgres@{{ my_vip }}:{{ psql_conf_dir }}/*.conf {{ barman_backup_dir }}/{{ cluster_name }}.{{ cluster_id}}/backup_configure/$B/

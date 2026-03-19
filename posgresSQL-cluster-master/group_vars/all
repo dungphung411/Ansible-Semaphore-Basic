@@ -1,0 +1,74 @@
+ansible_python_interpreter: /usr/bin/python3
+#keepavlie
+keepalive_conf_dir: /etc/keepalived
+
+#repmgr
+repmgr_conf_dir: "/etc/repmgr/{{ psql_version }}"
+repmgr_log_dir: "/etc/repmgr/{{ psql_version }}/log"
+
+#postgresql
+psql_version: 13
+psql_default_dir: "/var/lib/postgresql/{{ psql_version }}/main"
+psql_conf_dir: "/etc/postgresql/{{ psql_version }}/main"
+psql_bin_dir: "/usr/lib/postgresql/{{ psql_version }}/bin"
+psql_port: 5432
+psql_data_dir: "/data/postgresql/{{ psql_version }}/main"
+psql_replication_slots: 10
+psql_replica_username: replica
+psql_replica_password: "wIck3d!ObscEne#"
+psql_replica_dbname: replica
+psql_replica_role: SUPERUSER
+psql_administrator_username: admin
+psql_administrator_password: "admin123"
+psql_administrator_dbname: "admin"
+psql_administrator_role: SUPERUSER
+env: prod
+
+#barman
+psql_barman_password: "Barman@123"
+psql_streaming_barman: "StreammingBarman@123"
+barman_backup_dir: "/backup/{{ org_name }}/{{ db_type }}"
+
+#option yes/no
+isbackup: "no"
+org_name: XPLAT-ORG
+cluster_id: 12345
+cluster_name: postgresql
+db_type: postgresql
+iscluster: "yes"
+number_of_backup: 10
+
+#management psql
+stop: "no"
+start: "no"
+restart: "no"
+failover: "no"
+newmaster: 10.0.2.15
+#for make schedule full backup
+cron_minute: 10
+cron_hour: 00
+cron_day: "*"
+cron_weekday: 1
+cron_month: "*"
+#recovery
+recovery_backup_id: ""
+recovery_target_time: ""
+#example
+#recovery_backup_id: 20210818T041747
+#recovery_target_time: "2021-08-18 04:18:58+00:00"
+
+#-----------alertmanager
+pmm_server_version: 2.20.0
+promteams_dir: /etc/promteams
+prom_team_image: "quay.io/prometheusmsteams/prometheus-msteams"
+docker_data: /var/lib/docker/volumes
+
+#-----------monitor
+gra_admin_pass: admin@123
+gra_user: mon
+gra_pass: mon@123
+gra_orgid: 1
+gra_group: new_group
+folderuid: "someidofpostgre01"
+foldername: "Postgresql_Cluster"
+prefix_alias: 11_postgresql

@@ -1,0 +1,9 @@
+[{{ cluster_name }}.{{ cluster_id}}]
+description = "Main PostgreSQL server"
+ssh_command = ssh -o StrictHostKeyChecking=no postgres@{{ hostvars[groups['master'][0]].ansible_host }}
+conninfo = host={{ hostvars[groups['master'][0]].ansible_host }} user=streaming_barman dbname=postgres
+streaming_conninfo = host={{ hostvars[groups['master'][0]].ansible_host }} user=streaming_barman dbname=postgres
+backup_method = postgres
+streaming_archiver = on
+slot_name = barman
+retention_policy: REDUNDANCY {{ number_of_backup }}
