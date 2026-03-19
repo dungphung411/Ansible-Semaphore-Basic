@@ -50,26 +50,15 @@
     - p.stat.exists == False
 
 
-# Tạo thư mục chứa key của PGDG (đúng theo layout postgresql-common trên Ubuntu)
-- name: Ensure PGDG key directory exists (Ubuntu noble)
-  file:
-    path: /usr/share/postgresql-common/pgdg
-    state: directory
-    mode: '0755'
-  when:
-    - p.stat.exists == False
-    - not ("/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc" | stat).stat.exists  # ← Luôn tạo dir nếu cần
-
-
 # Tải public signing key để apt xác thực package từ PGDG
 - name: Download PGDG repository signing key (Ubuntu noble)
   get_url:
     url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
     dest: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
     mode: '0644'
-    force: false
-  when:
-    - p.stat.exists == False
+    force: no
+  creates: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc  # ← Skip nếu file tồn tại
+  when: p.stat.exists == False
 
 # Thêm PGDG repo vào apt sources (kèm signed-by để pin key đúng file)
 - name: Add PGDG apt repository list (Ubuntu noble)
