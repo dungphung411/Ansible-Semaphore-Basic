@@ -4,8 +4,8 @@
 # Copy file từ role đến /opt trong máy thực thi
 - name: copy file 
   copy:
-    src: ./*
-    dest: /opt
+  src: ./
+  dest: /opt
 
 
 # Install python3-pip và psycopg2-binary
