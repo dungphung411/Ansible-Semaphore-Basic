@@ -4,7 +4,7 @@
 # Copy file từ role đến /opt trong máy thực thi
 - name: copy file 
   copy:
-    src: ./
+    src: ./*
     dest: /opt
 
 
