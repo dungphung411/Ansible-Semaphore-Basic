@@ -16,11 +16,23 @@
     - pip3 install psycopg2-binary
 
 
+- name: DEBUG psql_data_dir
+  debug:
+    msg: "psql_data_dir = {{ psql_data_dir }} || psql_version = {{ psql_version }}"
+
+
+
 # Kiểm tra PostgreSQL đã được khởi tạo chưa
 - name: Check if PostgreSQL database is initialized.
   stat:
     path: "{{ psql_data_dir }}/postmaster.opts"
   register: p
+
+- name: DEBUG p.stat
+  debug:
+    var: p.stat
+  when:
+    - p is defined  
 
 
 #(Lưu trữ) Cài đặt PostgreSQL theo gói offline (deb ở /opt/psql_{{ psql_version }})
