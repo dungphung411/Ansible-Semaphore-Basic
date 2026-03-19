@@ -19,7 +19,7 @@
     regexp: "net.ipv6"
     state: absent
 
-- name: allow ubuntu listen virtual IP 
-  sysctl:
+- name: allow ubuntu listen virtual IP
+  ansible.posix.sysctl:
     name: net.ipv4.ip_nonlocal_bind
     value: 1
