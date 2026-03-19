@@ -58,6 +58,7 @@
     mode: '0755'
   when:
     - p.stat.exists == False
+    - not ("/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc" | stat).stat.exists  # ← Luôn tạo dir nếu cần
 
 
 # Tải public signing key để apt xác thực package từ PGDG
