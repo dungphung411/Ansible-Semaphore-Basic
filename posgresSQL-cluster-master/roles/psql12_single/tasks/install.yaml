@@ -57,7 +57,7 @@
     dest: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
     mode: '0644'
     force: no
-  creates: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc  # ← Skip nếu file tồn tại
+    creates: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc  # ← Skip nếu file tồn tại
   when: p.stat.exists == False
 
 # Thêm PGDG repo vào apt sources (kèm signed-by để pin key đúng file)
