@@ -23,69 +23,18 @@
   register: p
 
 
-# (Lưu trữ) Cài đặt PostgreSQL theo gói offline (deb ở /opt/psql_{{ psql_version }})
-# - name: Install postgresql as default (offline)
-#   shell: |
-#     cd /opt/psql_{{ psql_version }}
-#     DEBIAN_FRONTEND=noninteractive apt install --allow-downgrades -y ./*.deb
-#   retries: 5
-#   delay: 10
-#   register: result
-#   until: result.rc == 0
-#   when:
-#     - p.stat.exists == False
-
-# Cài đặt PostgreSQL theo kiểu có mạng (PGDG repo) cho Ubuntu 24.04 (noble)
-# Theo hướng dẫn: https://www.postgresql.org/download/linux/ubuntu/
-# Cài các gói prerequisite để add repo PGDG và quản lý repo thuận tiện
-- name: Install prerequisites for PGDG repository (Ubuntu noble)
-  apt:
-    update_cache: yes
-    name:
-      - curl
-      - ca-certificates
-      - postgresql-common
-    state: present
-  when:
-    - p.stat.exists == False
-
-
-# Tải public signing key để apt xác thực package từ PGDG
-- name: Download PGDG key with dir creation
+#(Lưu trữ) Cài đặt PostgreSQL theo gói offline (deb ở /opt/psql_{{ psql_version }})
+- name: Install postgresql as default (offline)
   shell: |
-    mkdir -p /usr/share/postgresql-common/pgdg
-    curl -fLo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
-      https://www.postgresql.org/media/keys/ACCC4CF8.asc
-  args:
-    creates: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
-  when: p.stat.exists == False
-
-# Thêm PGDG repo vào apt sources (kèm signed-by để pin key đúng file)
-- name: Add PGDG apt repository list (Ubuntu noble)
-  copy:
-    dest: /etc/apt/sources.list.d/pgdg.list
-    mode: '0644'
-    content: "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main\n"
-  when:
-    - p.stat.exists == False
-
-
-# Cài postgresql server/client theo version yêu cầu từ PGDG (có retry để tránh lỗi mạng tạm thời)
-- name: Install PostgreSQL from PGDG repo (online) (Ubuntu noble)
-  apt:
-    update_cache: yes
-    name:
-      - "postgresql-{{ psql_version }}"
-      - "postgresql-client-{{ psql_version }}"
-    state: present
-  register: result
+    cd /opt/psql_{{ psql_version }}
+    DEBIAN_FRONTEND=noninteractive apt install --allow-downgrades -y ./*.deb
   retries: 5
   delay: 10
-  until: result is succeeded
+  register: result
+  until: result.rc == 0
   when:
     - p.stat.exists == False
-    - ansible_distribution == 'Ubuntu'
-    - ansible_distribution_release == 'noble'
+
 
 # Chờ một chút sau khi install để systemd/cluster scripts ổn định trước khi thao tác tiếp
 - name: Sleep for 5 seconds and continue with play
