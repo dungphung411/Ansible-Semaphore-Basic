@@ -1,38 +1,38 @@
 ---
 
+# Mục tiêu: Cài PostgreSQL (dạng .deb), khởi tạo PGDATA nếu chưa init,
+# cấu hình file, bật service và tạo admin user/database.
 
-# Copy file từ role đến /opt trong máy thực thi
+# 1) Chuẩn bị: chép nội dung role vào `/opt` để dùng cho bước cài gói sau.
 - name: copy file 
   copy:
-  src: ./
-  dest: /opt
+    src: ./
+    dest: /opt
 
-
-# Install python3-pip và psycopg2-binary
+# 2) Cài python tooling để các tác vụ/ứng dụng phía sau có thể dùng được.
 - name: install python3-pip
   shell: "{{ item }}"
   with_items:
     - apt -qq install -y python3-pip
     - pip3 install psycopg2-binary
 
-
-- name: DEBUG psql_data_dir
-  debug:
-    msg: "psql_data_dir = {{ psql_data_dir }} || psql_version = {{ psql_version }}"
-
-
-
-# Kiểm tra PostgreSQL đã được khởi tạo chưa
+# 3) Kiểm tra trạng thái init của PostgreSQL:
+# - Nếu `postmaster.opts` tồn tại => DB đã được khởi tạo, skip các bước init/cài đặt.
 - name: Check if PostgreSQL database is initialized.
   stat:
     path: "{{ psql_data_dir }}/postmaster.opts"
   register: p
 
+# (Lưu ý) Task này đang bị lặp lại y hệt task phía trên.
+# Về logic, kết quả `p.stat.exists` là như nhau nên task sau về bản chất chỉ là kiểm tra lại.
+- name: Check if PostgreSQL database is initialized.
+  stat:
+    path: "{{ psql_data_dir }}/postmaster.opts"
+  register: p
 
-
-
-#(Lưu trữ) Cài đặt PostgreSQL theo gói offline (deb ở /opt/psql_{{ psql_version }})
-- name: Install postgresql as default (offline)
+# 4) Cài PostgreSQL từ các file `.deb` trong `/opt/psql_{{ psql_version }}`
+# chỉ khi DB chưa được init (`p.stat.exists == False`).
+- name: Install postgresql as default
   shell: |
     cd /opt/psql_{{ psql_version }}
     DEBIAN_FRONTEND=noninteractive apt install --allow-downgrades -y ./*.deb
@@ -40,20 +40,17 @@
   delay: 10
   register: result
   until: result.rc == 0
-  # when:
-  # - p.stat is defined
-  # - p.stat.exists is defined
-  # - not p.stat.exists
+  when:
+    - p.stat.exists == False
 
-
-# Chờ một chút sau khi install để systemd/cluster scripts ổn định trước khi thao tác tiếp
+# 5) Chờ một khoảng ngắn rồi tiếp tục play (đảm bảo hệ thống ổn định sau install).
 - name: Sleep for 5 seconds and continue with play
   wait_for:
     timeout: 5
   when:
     - p.stat.exists == False
 
-# Restart postgresql sau khi cài để đảm bảo service + cluster mặc định được tạo xong (nếu có)
+# 6) Restart service PostgreSQL sau khi cài xong (chỉ chạy khi chưa init).
 - name: restart postgresql after install
   service:
     name: postgresql
@@ -62,7 +59,7 @@
   when:
     - p.stat.exists == False
 
-# Dừng service để chuẩn bị tạo/di chuyển PGDATA theo biến psql_data_dir và initdb thủ công
+# 7) Tắt service PostgreSQL trước khi tự init PGDATA (chỉ chạy khi chưa init).
 - name: Stop postgresql service
   service:
     name: postgresql
@@ -71,7 +68,7 @@
   when:
     - p.stat.exists == False
 
-# Tạo thư mục data (PGDATA) và set owner/group/mode chuẩn cho user postgres
+# 8) Tạo thư mục dữ liệu (PGDATA) cho PostgreSQL với owner/group/mode phù hợp.
 - name: Create postgresql data directory
   file:
     path: "{{ item }}"
@@ -84,13 +81,13 @@
   when:
     - p.stat.exists == False
 
-# Thêm public key vào authorized_keys để user postgres có thể SSH (phục vụ replication/backup/automation)
+# 9) Thêm public key vào `authorized_keys` của user `postgres`.
 - name: Deploy SSH authorized_key
   authorized_key:
     user: postgres
     key: "{{ lookup('file', 'files/ssh_key/id_rsa.pub') }}"
 
-# Copy private key cho user postgres (để SSH non-interactive tới các node/host khác)
+# 10) Copy private key vào thư mục `.ssh` và đặt quyền chỉ cho `postgres`.
 - name: Copy ssh keys
   copy:
     src: files/ssh_key/id_rsa
@@ -99,7 +96,7 @@
     group: postgres
     mode: 0400
 
-# Khởi tạo cluster database (initdb/pg_ctl init) trong PGDATA mục tiêu
+# 11) Init database bằng `pg_ctl init` dưới user `postgres`, với biến môi trường PGDATA.
 - name: Initialize database
   shell: "{{ item }}"
   become: true
@@ -113,45 +110,47 @@
   when:
     - p.stat.exists == False
 
-# Deploy các file cấu hình PostgreSQL (postgresql.conf/pg_hba.conf/custom.conf...) từ templates
-- name: Deploy pg_config files
+# 12) Render/copy các file cấu hình từ template `pg_config/`:
+# - Với file `.j2` thì `template` sẽ render,
+# - file khác được lấy theo cấu trúc `with_filetree`.
+- name: Copy pg_config file
   template:
     src: "{{ item.src }}"
-    dest: "{{ pg_config_base_dir }}/{{ item.path | basename }}"  
+    dest: "{{ psql_conf_dir }}/{{ item.path | regex_replace('\\.j2$', '') }}"
+    force: yes
     owner: postgres
     group: postgres
-    mode: '0644'
-  loop: "{{ query('community.general.filetree', role_path ~ '/templates/pg_config/') }}"
-  loop_control:
-    label: "{{ item.path }}"
+    mode: 0644
+  with_filetree: '{{ role_path }}/templates/pg_config/'
   when: item.state == 'file'
 
-# Cài unit systemd `postgresql.service` (custom) để service chạy theo cấu hình/paths của role
+# 13) Cập nhật unit file systemd cho PostgreSQL.
 - name: copy postgresql.service
   template:
     src: postgresql.service
     dest: /lib/systemd/system/postgresql.service
 
-# Reload systemd để nhận unit file vừa thay đổi
+# 14) Reload systemd để unit file mới được nhận.
 - name: daemon reload service
   service:
     name: postgresql
     daemon_reload: yes
 
-# Start postgresql sau khi đã initdb + deploy config + unit systemd
+# 15) Bật/khởi động service PostgreSQL.
 - name: Start postgresql service
   service:
     name: postgresql
     enabled: no
     state: started
 
-# Chờ đến khi PostgreSQL lắng nghe port sẵn sàng nhận kết nối
+# 16) Đợi PostgreSQL mở port để các bước phía sau có thể kết nối.
 - wait_for:
     host: "{{ ansible_host }}"
     port: "{{ psql_port }}"
     state: started
 
-# Thêm psql bin directory vào PATH của user postgres để dùng psql/pg_ctl không cần gõ full path
+# 17) Thêm đường dẫn thư mục bin PostgreSQL vào `.profile` của user `postgres`
+# (để `psql/pg_ctl` được tìm thấy khi đăng nhập).
 - name: Adding the path in the bashrc files
   become_user: postgres
   lineinfile: 
@@ -161,14 +160,14 @@
     insertafter: 'EOF' 
     state: present
 
-# Nạp lại profile để PATH có hiệu lực trong session hiện tại (cho các task phía sau nếu cần)
+# 18) Nguồn lại `.profile` trong phạm vi của lệnh shell hiện tại (không kéo dài ra ngoài task).
 - name: Source Profile
   become_user: postgres
   shell: source ~postgres/.profile
   args:
     executable: /bin/bash
 
-# Tạo user admin PostgreSQL (role) để quản trị/ứng dụng đăng nhập
+# 19) Tạo role “admin” (user PostgreSQL) với mật khẩu và quyền theo biến truyền vào.
 - name: Create admin user
   become_user: postgres
   postgresql_user:
@@ -179,7 +178,7 @@
     password: "{{ psql_administrator_password }}"
     role_attr_flags: "{{ psql_administrator_role }}"
 
-# Tạo database mặc định cho admin (owner = admin user)
+# 20) Tạo database dành cho admin (dùng template `template1`).
 - name: Create administrator database
   become_user: postgres
   postgresql_db:
