@@ -68,6 +68,15 @@
     state: stopped
   when:
     - p.stat.exists == False
+  # 1. Tạo user postgres (root)
+- name: Create postgres system user
+  user:
+    name: postgres
+    system: true
+    shell: /bin/bash
+    home: /var/lib/postgresql
+    create_home: false
+  become: true
 
 # 8) Tạo thư mục dữ liệu (PGDATA) cho PostgreSQL với owner/group/mode phù hợp.
 - name: Create postgresql data directory
