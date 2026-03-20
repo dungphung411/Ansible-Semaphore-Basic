@@ -106,6 +106,13 @@
     group: postgres
     mode: 0400
 
+
+- name: Install acl for become_user
+  apt:
+    name: acl
+    state: present
+  become: true
+
 # 11) Init database bằng `pg_ctl init` dưới user `postgres`, với biến môi trường PGDATA.
 - name: Initialize database
   shell: "{{ item }}"
