@@ -13,6 +13,7 @@ psql_conf_dir: "/etc/postgresql/{{ psql_version }}/main"
 psql_bin_dir: "/usr/lib/postgresql/{{ psql_version }}/bin"
 psql_port: 5432
 psql_data_dir: "/data/postgresql/{{ psql_version }}/main"
+
 psql_replication_slots: 10
 psql_replica_username: replica
 psql_replica_password: "wIck3d!ObscEne#"

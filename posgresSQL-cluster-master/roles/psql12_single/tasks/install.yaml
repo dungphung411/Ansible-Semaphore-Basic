@@ -21,15 +21,10 @@
 # - Nếu `postmaster.opts` tồn tại => DB đã được khởi tạo, skip các bước init/cài đặt.
 - name: Check if PostgreSQL database is initialized.
   stat:
-    path: "{{ psql_data_dir }}/postmaster.opts"
+    path: "{{ psql_default_dir }}/postmaster.opts"
   register: p
 
-# (Lưu ý) Task này đang bị lặp lại y hệt task phía trên.
-# Về logic, kết quả `p.stat.exists` là như nhau nên task sau về bản chất chỉ là kiểm tra lại.
-- name: Check if PostgreSQL database is initialized.
-  stat:
-    path: "{{ psql_data_dir }}/postmaster.opts"
-  register: p
+
 
 # 4) Cài PostgreSQL từ các file `.deb` trong `/opt/psql_{{ psql_version }}`
 # chỉ khi DB chưa được init (`p.stat.exists == False`).
