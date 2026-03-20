@@ -1,0 +1,116 @@
+## copy config file
+- name: Copy remote node_exporter svr configuration file
+  template: 
+    src: "{{ item.source }}"
+    dest: "{{ item.dest }}"
+    mode:  0644
+  with_items:
+    - { source: 'remote_node_exporter.service.j2', dest: '/lib/systemd/system/remote_node_exporter.service'}
+    - { source: 'remote_node_exporter.cfg.yml.j2', dest: '/etc/remote_node_exporter/remote_node_exporter.cfg.yml'}
+  register: output
+  tags: copy-rnxcfg
+
+##----------check existence before copy available port
+- name: check port avaialbe list 
+  stat:
+    path: /etc/remote_node_exporter/port_avail.list
+  register: port_list
+- name: Copy new availabe port at the first time build monitoring on the server
+  template: 
+    src: "{{ item.source }}"
+    dest: "{{ item.dest }}"
+    mode:  0644
+  with_items:
+   - { source: 'port_avail.list.j2', dest: '/etc/remote_node_exporter/port_avail.list'}
+   - { source: 'remote_node_exporter.yml.j2', dest: '/etc/remote_node_exporter/remote_node_exporter.yml'}
+  when: not port_list.stat.exists
+
+##---------- copy service file
+- name: Copy node exporter
+  ansible.builtin.copy:
+    src: files/mon/scripts/remote_node_exporter
+    dest: /usr/sbin/remote_node_exporter
+    owner: root
+    group: root
+    mode: '0755'
+  register: output
+  tags: copy-rnxcfg
+
+- name: Copy node exporter output
+  debug:
+    msg: "{{ output }}"
+  tags: copy-rnxcfg
+
+##----------check for existed ip from file [remote_node_exporter.yml] before add to service
+- name: get content of remote_node_exporter.yml      
+  shell: "cat /etc/remote_node_exporter/remote_node_exporter.yml"
+  register: serv_config
+
+##----------add service config
+- name: Add "node exporter service config" when is has not been added yet
+  shell: |
+    rnx_port=`head -1 /etc/remote_node_exporter/port_avail.list`
+    sed -i '1d' /etc/remote_node_exporter/port_avail.list
+    cat /etc/remote_node_exporter/remote_node_exporter.cfg.yml > /etc/remote_node_exporter/tmp.cfg.yml
+    sed -i /etc/remote_node_exporter/tmp.cfg.yml
+    sed -i 's/IPIPIP/{{hostvars[item].ansible_host}}/g' /etc/remote_node_exporter/tmp.cfg.yml
+    sed -i 's/AAAAAA/{{hostvars[item].ansible_ssh_user}}/g' /etc/remote_node_exporter/tmp.cfg.yml
+    sed -i 's/BBBBBB/{{hostvars[item].ansible_ssh_pass}}/g' /etc/remote_node_exporter/tmp.cfg.yml
+    sed -i "s/CCCCCC/$rnx_port/g" /etc/remote_node_exporter/tmp.cfg.yml
+    cat /etc/remote_node_exporter/tmp.cfg.yml >> /etc/remote_node_exporter/remote_node_exporter.yml
+  with_items:  "{{groups['nodes']}}"
+  when: hostvars[item].ansible_host not in serv_config.stdout
+  register: output
+  tags: add-rnxcfg
+    # echo "{{hostvars[item].ansible_host}}:${rnx_port}" >> /etc/remote_node_exporter/added.list
+- name: Add remote node exporter configurations output
+  debug:
+    msg: "{{ output }}"
+  tags: add-rnxcfg
+
+
+## Reload systemd
+- name: Force systemd to reload deamon
+  systemd:
+    daemon_reload: yes
+  register: output
+  tags: sysd-rl
+
+## REStart remote node_exporter svc
+- name: Start remote_node_exporter service
+  service:
+    name: remote_node_exporter
+    state: restarted
+    enabled: true
+  register: output
+  tags: start-rnx
+
+## Wait for remote node_exporter start 
+- name: Wait for service remote_node_exporter to be running
+  service_facts:
+  register: result
+  until: result.ansible_facts.services['remote_node_exporter.service'].state == 'running'
+  retries: 20
+  delay: 6
+  tags: wait-rnx
+
+##----------remove node exporter on node tab
+- name: remove old postgre node exporter
+  shell: |
+    docker exec -t pmm-server bash -c "pmm-admin inventory list --server-url=http://admin:{{gra_admin_pass | urlencode()}}@127.0.0.1 nodes" | grep {{hostvars[item].ansible_host}} | awk '{print $4}'>node_id.list
+    while read line ; do 
+      docker exec -t pmm-server bash -c "pmm-admin inventory remove  --server-url=http://admin:{{gra_admin_pass | urlencode()}}@127.0.0.1 node $(echo $line | tr -d '\n\r') --force"
+    done < node_id.list
+  with_items: "{{groups['nodes']}}"
+  ignore_errors: True
+
+##---------add remote exporter based on service config file (/etc/remote_node_exporter/remote_node_exporter.yml)
+- name: add remote exporter
+  shell: |
+    cp /etc/remote_node_exporter/remote_node_exporter.yml .
+    adport=$(yq eval -o=j remote_node_exporter.yml | jq -r '.[]' |jq -r '.[] | select(.host=="{{hostvars[item].ansible_host}}") | .local')
+    docker exec -t pmm-server bash -c "pmm-admin add external-serverless  --server-url=http://admin:{{gra_admin_pass | urlencode()}}@127.0.0.1 --host={{ansible_host}} --listen-port=$adport --scheme=http --environment={{env}} --group={{gra_group}} --external-name={{prefix_alias}}_{{hostvars[item].ansible_host}}"
+  with_items:  "{{groups['nodes']}}"
+  register: output
+
+- debug: var=output

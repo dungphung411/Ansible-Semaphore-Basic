@@ -1,0 +1,130 @@
+##task list
+#  0: cleanup env
+#  1: copy needed files
+#  2: create folder
+#  3: create user
+#  4: grant perm on folder to specified user
+#  5: prepare dashboard
+#  6: upload dashboard to folder
+
+##--------------clean up env--------------
+#delete file
+- name: clean up
+  shell: |
+    mkdir /tmp/mon_postgresql/
+    rm -rf /tmp/mon_postgresql/*
+#delete old grafana folder
+- name: delete folder
+  shell: |
+    curl -s -k -X DELETE -H "Content-Type: application/json"  -u admin:{{gra_admin_pass}} https://{{ansible_host}}/graph/api/folders/{{folderuid}} |jq
+  
+##--------------push needed files--------------
+
+## Copy packages and script
+- name: Copy dirs with owner and permissions
+  ansible.builtin.copy:
+    src: files/mon/
+    dest: /mon
+    owner: root
+    group: root
+    mode: '0755'
+  register: output
+  tags: copy-dir
+
+- name: push needed config files
+  template: 
+    src: "{{ item.source }}"
+    dest: "/tmp/mon_postgresql/{{ item.dest }}"
+    mode: 0755
+  with_items:
+    - { source: 'createfolder.json.j2', dest: 'createfolder.json' }
+    - { source: 'createuser.json.j2', dest: 'createuser.json' }
+    - { source: 'modfilename.sh.j2', dest: 'modfilename.sh' }
+    
+- name: push dashboards files
+  copy:
+    src: files/mon/dashboards/
+    dest: /tmp/mon_postgresql/dashboards
+    mode: 0644
+- name: process dashboard file name
+  shell: /usr/bin/bash /tmp/mon_postgresql/modfilename.sh
+
+
+##--------------create grafana folder--------------
+- name: make folder
+  shell: |
+    curl -s -k -X POST -H "Content-Type: application/json" -d @/tmp/mon_postgresql/createfolder.json -u admin:{{gra_admin_pass}} https://{{ansible_host}}/graph/api/folders
+- name: get folderid
+  shell: curl -s -k -u admin:{{gra_admin_pass}} https://{{ansible_host}}/graph/api/folders | jq -r '.[] | select(.uid=="{{folderuid}}") | .id'
+  register: folderid
+- debug: msg="{{folderid.stdout}}"
+- name: get dashboard list
+  shell: ls /tmp/mon_postgresql/dashboards/
+  register: dashboard_list
+
+
+##--------------create grafana user and grant perm on folder--------------
+- name: create grafana user
+  shell: |
+    curl -s -k -X POST -H "Content-Type: application/json" -d @/tmp/mon_postgresql/createuser.json -u admin:{{gra_admin_pass}} https://{{ansible_host}}/graph/api/admin/users
+
+- name: get user_id by login or mail of created or existed user
+  shell: curl -s -k -u admin:{{gra_admin_pass}} https://{{ansible_host}}/graph/api/users/lookup?loginOrEmail={{gra_user}} | jq '. | .id'
+  register: user_id
+- debug: msg="{{user_id.stdout}}"
+
+- name: grant view on folder to user
+  shell: |
+    curl -s -k -X POST -H "Content-Type: application/json" -d '{  "items": [ { "userId": {{user_id.stdout}}, "permission": 1 } ]}' -u admin:{{gra_admin_pass}} https://{{ansible_host}}/graph/api/folders/{{folderuid}}/permissions | jq
+
+
+##--------------preparing the dashboards--------------
+#convert win to unix fomat
+- name: convert dos 2 unix
+  shell: dos2unix /tmp/mon_postgresql/dashboards/{{item}}
+  with_items: "{{dashboard_list.stdout_lines}}"
+
+#  escape: \\ equal \ and \. equal . 
+#         so \\\\\\\. mean \\\.
+#         so \\\\n mean \\n
+#         so \\\\\\d mean \\\d
+- name: escape some special char, replace \n to \\n --- and \\d to \\\d --- and \\. to \\\.
+  shell: sed -i 's:\\n:\\\\n:g;s:\\\\d:\\\\\\d:g;s:\\\\\.:\\\\\\\.:g' /tmp/mon_postgresql/dashboards/{{item}}
+  with_items: "{{dashboard_list.stdout_lines}}"
+#add tag
+- name: put in dashboard tag
+  shell: |
+    cd /tmp/mon_postgresql/dashboards
+    echo "{\"dashboard\":$(cat {{item}}),\"overwrite\": true,\"folderId\": {{folderid.stdout}}}" > {{item}}
+  with_items: "{{dashboard_list.stdout_lines}}"
+  register: out
+- debug: msg="{{out}}"
+#config uid and id
+- name: assign null to id and uid
+  shell: |
+    cd /tmp/mon_postgresql/dashboards
+    jq -c '.dashboard.id=null' {{item}} > tmp.$$.json && mv tmp.$$.json {{item}}
+  with_items: "{{dashboard_list.stdout_lines}}"
+  
+
+##--------------import to pmm--------------
+- name: push dashboard to pmm
+  shell: |
+    curl -s -k -X POST -H "Content-Type: application/json" -d @/tmp/mon_postgresql/dashboards/{{item}} -u admin:{{gra_admin_pass}} https://{{ansible_host}}/graph/api/dashboards/import
+  with_items: "{{dashboard_list.stdout_lines}}"
+
+
+  ##--------------grant viewer to view home dashboard--------------
+#get home dahsboard id
+- name : get home dashboard id from fix uid (pmm-home) 
+  shell: |
+    curl -s -k -u admin:{{gra_admin_pass}} https://{{ansible_host}}/graph/api/dashboards/uid/pmm-home |jq -r '.dashboard|.id'
+  register: home_id
+- debug: msg="{{home_id}}"
+#grant viewer to home dashboard
+- name : grant permission to home dashboard
+  shell: |
+    curl -s -k -X POST -H "Content-Type: application/json" -d '{  "items": [ { "role": "Viewer", "permission": 1 } ]}' -u admin:{{gra_admin_pass}} https://{{ansible_host}}/graph/api/dashboards/id/{{home_id.stdout}}/permissions | jq
+  register: op
+- debug: msg="{{op}}"
+

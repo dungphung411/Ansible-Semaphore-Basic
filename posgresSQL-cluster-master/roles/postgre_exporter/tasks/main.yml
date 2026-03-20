@@ -1,0 +1,16 @@
+---
+#-----------remove old
+- name: remove old psql exporter based on saved service name file
+  shell: |
+    docker exec -t pmm-server bash -c "pmm-admin remove postgresql --server-url=http://admin:{{ gra_admin_pass | urlencode() }}@127.0.0.1 $(cat /etc/database_exporter/service_name.saved | grep {{ hostvars[item].ansible_host }} | tail -n1 )" 
+  with_items: "{{groups['nodes']}}"
+  ignore_errors: True
+
+#----------- add new ( with new prefix)
+- name: Add psql exporter
+  shell: |
+    docker exec -t pmm-server bash -c "pmm-admin add postgresql --server-url=http://admin:{{ gra_admin_pass | urlencode() }}@127.0.0.1 --host={{ hostvars[item].ansible_host }} --username={{psql_administrator_username}} --password={{ psql_administrator_password }} --port={{psql_port}} --environment={{env}} --service-name={{ prefix_alias}}_{{ hostvars[item].ansible_host }}_psql --cluster={{ cluster_name }}_{{ cluster_id }}"
+    mkdir -p /etc/database_exporter
+    echo {{prefix_alias}}_{{ hostvars[item].ansible_host }}_psql >> /etc/database_exporter/service_name.saved
+  with_items: "{{groups['nodes']}}"
+

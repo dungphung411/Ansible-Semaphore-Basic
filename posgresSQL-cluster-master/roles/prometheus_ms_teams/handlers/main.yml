@@ -1,0 +1,6 @@
+---
+
+- name: restart_promteams
+  shell: "docker restart promteams"
+- name: restart_pmm_server 
+  shell: "docker restart pmm-server"

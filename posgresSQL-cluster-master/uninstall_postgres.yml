@@ -1,0 +1,38 @@
+---
+
+- hosts: nodes
+  become: yes
+  gather_facts: false
+  tasks:
+
+
+     - name: Unconditionally reboot OS  with all defaults
+       reboot:
+
+     - name: Wait for automatic system updates
+       shell: while sudo fuser {{ item }} >/dev/null 2>&1; do sleep 30; done;
+       with_items:
+         - /var/lib/dpkg/lock
+         - /var/lib/dpkg/lock-frontend
+         - /var/lib/apt/lists/lock
+         - /var/lib/apt/lists/lock-frontend
+         - /var/lib/dpkg/updates
+
+     - name: remove package
+       shell: "{{ item }}"
+       with_items:
+               - dpkg --configure -a
+               - apt-get --purge remove postgresql --yes
+               - rm -rf /var/lib/postgresql
+               - rm -rf /data/postgresql
+               - rm -rf /etc/postgresql
+      ## Reboot OS
+     - name: Unconditionally reboot OS  with all defaults
+       reboot:
+
+     - name: remove package
+       shell: "{{ item }}"
+       with_items:
+               - apt-get remove postgresql-common --yes
+               - apt-get remove postgresql-client-common --yes
+

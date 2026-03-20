@@ -1,0 +1,14 @@
+---
+
+- name: add prometheus config
+  template:
+    src: prometheus.base.yml.j2
+    dest: "{{ docker_data }}/prometheus_conf/_data/prometheus.base.yml"
+
+- name: copy file setup to rules folder in pmm-server
+  copy:
+    src: ./rules/
+    dest: "{{ docker_data }}/prometheus_rule/_data/"
+
+- name: restart container
+  shell: docker restart pmm-server

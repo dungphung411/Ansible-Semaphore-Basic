@@ -1,0 +1,14 @@
+[Unit]
+Description=Prometheus remote node exporter
+After=network.target
+
+[Service]
+User=root
+Group=root
+ExecStart=/usr/sbin/remote_node_exporter --config.file=/etc/remote_node_exporter/remote_node_exporter.yml
+Restart=always
+LimitNOFILE = 10000
+LimitNPROC = 10000
+
+[Install]
+WantedBy=multi-user.target

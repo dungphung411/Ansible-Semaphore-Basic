@@ -1,0 +1,26 @@
+---
+
+- name: run telegram-bot container
+  tags: telegram_bot
+  docker_container:
+    name: telegram-bot
+    image: "registry.gitlab.com/ix.ai/alertmanager-telegram-bot:v0.6.0"
+    state: started
+    ports:
+      - "9999:9999"
+    env:
+      TELEGRAM_TOKEN: "{{ telegram_token }}"
+      TELEGRAM_CHAT_ID: "{{ telegram_chat_id }}"
+      PORT: "9999"
+      GELF_HOST: "graylog"
+      TELEGRAM_PARSE_MODE: "Markdown"
+  when:
+     - alert_telegram == "yes"
+
+- name: add alertmanager config
+  template:
+    src: alertmanager.base.yml.j2
+    dest: "{{ docker_data }}/alertmanager_conf/_data/alertmanager.base.yml"
+
+- name: stop start docker
+  shell: docker restart pmm-server

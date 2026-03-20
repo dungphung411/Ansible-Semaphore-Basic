@@ -1,0 +1,66 @@
+---
+
+
+- name: Load docker images  
+  shell: |
+    cd /mon/pkgs
+    docker load -i pmm-server-2.20.0.docker
+    docker images
+  register: output
+  tags: load-images
+
+- name: Creating PMM Data Container
+  docker_container:
+    name: pmm-data
+    image: "percona/pmm-server:{{ pmm_server_version }}"
+    state: present
+    volumes:
+        - prometheus_data:/opt/prometheus/data
+        - prometheus_rule:/srv/prometheus/rules
+        - prometheus_conf:/srv/prometheusi
+        - consul_data:/opt/consul-data
+        - mysql_data:/var/lib/mysql
+        - grafana_data:/var/lib/grafana
+        - grafana_conf:/etc/grafana
+        - alertmanager_conf:/srv/alertmanager
+    restart_policy: always
+    command: /bin/true
+
+- name: Running PMM Data Container with both SSL Encryption and pmm_server_password protection
+  docker_container:
+    name: pmm-server
+    image: "percona/pmm-server:{{ pmm_server_version }}"
+    state: started
+    network_mode: host
+    volumes_from:
+    - pmm-data
+    restart_policy: always
+
+- name: Reset password grafana in pmm-server
+  shell: |
+    docker exec -t pmm-server bash -c  'ln -s /srv/grafana /usr/share/grafana/data; grafana-cli --homepath /usr/share/grafana admin reset-admin-password {{gra_admin_pass}}'
+
+
+##--------------revoke all roles from default folder (only admin can access)--------------
+- name: Copy default folder uid list
+  template: 
+    src: "{{ item.source }}"
+    dest: "{{ item.dest }}"
+    mode:  0644
+  with_items:
+    - { source: 'folderuid.list', dest: '/tmp/folderuid.list' }
+- name: wait for pmm to come up
+  uri:
+    url: "http://{{ansible_host}}"
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 60
+  delay: 1
+- name: revoke perm on our default folder by folder uid
+  shell: |
+    while read line; do eval $(echo 'curl -s -k -X POST -H "Content-Type: application/json" -d "" -u admin:{{gra_admin_pass}} https://{{ansible_host}}/graph/api/folders/'$line'/permissions'); done < /tmp/folderuid.list
+  register: oupt
+- name: revoke perm on our default folder by folder uid output
+  debug:
+    msg: "{{ oupt }}"

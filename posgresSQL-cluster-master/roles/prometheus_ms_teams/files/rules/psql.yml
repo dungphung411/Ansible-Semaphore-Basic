@@ -1,0 +1,12 @@
+groups:
+- name: Monitor service
+  rules:
+
+  - alert: Postgresql down
+    annotations:
+      description: "Postgresql {{ $labels.service_name }} of cluster {{ $labels.cluster }} has been down for more than 5s."
+      summary: Postgreseql {{ $labels.service_name }} down
+    expr: sum by(agent_type, cluster, environment, external_group, node_name, note_type, service_name, service_type) (up{agent_type="postgres_exporter"} == 0) 
+    for: 5s
+    labels:
+      severity: error

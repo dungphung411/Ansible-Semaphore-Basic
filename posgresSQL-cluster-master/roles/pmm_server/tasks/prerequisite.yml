@@ -1,0 +1,64 @@
+---
+## install packages
+
+- name: Update apt-get repo and cache
+  apt:
+    update_cache: yes
+    force_apt_get: yes
+    cache_valid_time: 3600
+  register: apt_status
+  until: apt_status is success
+  delay: 6
+  retries: 10
+
+- name: Wait for automatic system updates
+  become: true
+  shell: while sudo fuser {{ item }} >/dev/null 2>&1; sudo lsof -t {{ item }} >/dev/null 2>&1 | xargs kill;do sleep 5; done;
+  with_items:
+    - /var/lib/dpkg/lock
+    - /var/lib/dpkg/lock-frontend
+    - /var/lib/apt/lists/lock
+    - /var/lib/apt/lists/lock-frontend
+    - /var/lib/dpkg/updates
+
+- name: Install basic packages with a list variable
+  apt:
+    name: "{{ packages }}"
+    state: present
+  vars:
+    packages:
+    - net-tools
+    - jq
+    - dos2unix
+
+- name: copy yq
+  copy: 
+    src: yq
+    dest: /usr/bin/yq
+    mode: 755
+      
+      ## copy file
+- name: Create directorys with a list variable
+  file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: 0755
+    recurse: yes
+    state: directory
+  with_items:
+  - /mon
+  - /etc/remote_node_exporter
+  register: output
+  tags: create-dir
+
+  ## Copy packages and script
+- name: Copy dirs with owner and permissions
+  ansible.builtin.copy:
+    src: files/mon/
+    dest: /mon
+    owner: root
+    group: root
+    mode: '0755'
+  register: output
+  tags: copy-dir

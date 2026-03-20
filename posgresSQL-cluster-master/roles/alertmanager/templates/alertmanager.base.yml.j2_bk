@@ -1,0 +1,97 @@
+---
+global:
+  resolve_timeout: 5s
+  scrape_interval: 5s
+  evaluation_interval: 30s
+  group_wait: 30s
+
+inhibit_rules:
+- source_match:
+    severity: critical
+  target_match:
+    severity: warning
+
+{% if alert_email == "yes" %}
+route:
+ receiver: 'email-notifications'
+# group_by: ['alertname', 'instance']
+ group_by: ['alertname']
+ group_wait: 30s
+ group_interval: 30s
+ repeat_interval: 30s
+
+receivers:
+- name: 'email-notifications'
+  email_configs:
+  - to: {{ address_email }}
+    from: mailer.xplat@fpt.com.vn
+    smarthost: mail.fpt.com.vn:587
+    auth_username: mailer.xplat@fpt.com.vn
+    auth_identity: mailer.xplat@fpt.com.vn
+    auth_password: Fci@FCI123456
+    require_tls: true
+    send_resolved: true
+{% elif alert_teams == "yes" %}
+route:
+  group_by: ['alertname', 'instance']
+  group_interval: 30s
+  repeat_interval: 30s
+  receiver: 'prometheus-msteams'
+receivers:
+- name: 'prometheus-msteams'
+  webhook_configs:
+  - send_resolved: true
+    url: 'http://localhost:2000/alertmanager'
+{% elif alert_slack == "yes" %}
+route:
+  receiver: 'slack-notifications' 
+  routes:
+    - match:
+        severity: 'critical' 
+      repeat_interval: 30s
+      group_wait: 30s
+      group_interval: 30s
+      continue: true
+
+receivers:
+- name: 'slack-notifications'
+  slack_configs:
+  - channel: '{{ channel_slack }}'
+    api_url: '{{ address_slack }}'
+    send_resolved: true
+    http_config: {}
+{% raw %}
+    title: |-
+      [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}
+    text: >-
+      {{ with index .Alerts 0 -}}
+        :chart_with_upwards_trend: *<{{ .GeneratorURL }}|Graph>*      :spiral_note_pad: *<{{ .Annotations.runbook }}|Runbook>*
+      {{ end }}
+      *Alert details*:
+
+      {{ range .Alerts -}}
+      *Rule:* {{ .Annotations.description }}
+
+      *Details:*
+        {{ range .Labels.SortedPairs }} • *{{ .Name }}:* `{{ .Value }}`
+        {{ end }}
+      {{ end }}
+    icon_url: "https://i.imgur.com/qvuuXc8.png"
+{% endraw %}
+{% elif alert_telegram == "yes" %}
+route:
+  receiver: 'alert-telegram'
+  routes:
+    - match:
+        severity: 'critical'
+      repeat_interval: 30s
+      group_wait: 30s
+      group_interval: 30s
+      continue: true
+receivers:
+- name: 'alert-telegram'
+  webhook_configs:
+  - url: http://localhost:9999/alert
+    send_resolved: true
+{% else %}
+{% endif %}

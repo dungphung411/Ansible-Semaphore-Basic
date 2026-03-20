@@ -1,0 +1,67 @@
+groups:
+- name: Monitor Hardware(OS)
+  rules:
+
+  - alert: Instance Down
+    annotations:
+      description: 'Server {{ $labels.node_name }} of cluster {{ $labels.external_group }} has been down for more than 5s.'
+      summary: 'Server {{ $labels.node_name }} down'
+    expr: sum by(agent_type, cluster, environment, external_group,node_name, node_type, service_name, service_type) (up{agent_type="external-exporter"} == 0)
+    for: 5s
+    labels:
+      severity: critical
+
+         
+  - alert: Host Out Of Memory
+    annotations:
+      summary: Host out of memory {{ $labels.node_name }}
+      description: 'Node memory available is (< 10% left) VALUE = {{ $value | printf "%.2f"}}%'
+    expr: sum by(agent_type, environment, external_group, node_name, note_type, service_name, service_type) (100 * (node_memory_MemFree + node_memory_Cached + node_memory_Buffers) / node_memory_MemTotal) < 10
+    for: 5s
+    labels:
+      severity: critical
+
+  - alert: Host High Cpu Load
+    annotations:
+      summary: 'Host high CPU load in server {{ $labels.external_group }}'
+      description: 'CPU load in server {{ $labels.node_name }} is > 90%, VALUE = {{ $value | printf "%.2f"}}%'
+    expr: 100 - (avg by(agent_type, environment, external_group, node_name, note_type, service_name, service_type) (rate(node_cpu{mode="idle"}[30s])) * 100) > 90
+    for: 0m
+    labels:
+      severity: warning
+
+  - alert: Host Out Of Disk Space
+    expr: sum by(agent_type, environment, external_group, node_name, note_type, service_name, service_type, mountpoint)  (100 - ((node_filesystem_avail{fstype!="rootfs",mountpoint!~".+snap.+"} * 100) /  node_filesystem_size{fstype!="rootfs",mountpoint!~".+snap.+"})) > 90
+    for: 5s
+    labels:
+      severity: warning
+    annotations:
+      summary: Host out of disk space {{ $labels.node_name }}
+      description: 'Disk is almost full (> 90%) VALUE = {{ $value | printf "%.2f" }}%'
+
+  - alert: Host Unusual Network ThroughputOut
+    expr: sum by (node_name, external_group, node_type) (rate(node_network_transmit_bytes[2m])) / 1024 / 1024 > 100   #100
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: Host unusual network throughput out {{ $labels.instance }}
+      description: 'Host network interfaces are probably sending too much data (> 100 MB/s)\n  VALUE = {{ $value | printf "%.2f" }}'
+
+  - alert: Host Unusual Disk Read Rate
+    expr: sum by (node_name, external_group, node_type) (irate(node_disk_reads_completed[2m])) / 1024 / 1024 > 50
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: Host unusual disk read rate {{ $labels.instance }}
+      description: 'Disk is probably reading too much data (> 50 MB/s) VALUE = {{ $value | printf "%.2f" }}'
+
+  - alert: Un usual Disk Write Rate
+    expr: sum by (node_name, external_group, node_type) (irate(node_disk_write_time_ms[2m])) / 1024 / 1024 > 50
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Unusual disk write rate (instance {{ $labels.instance }})"
+      description: "Disk is probably writing too much data (> 50 MB/s)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"

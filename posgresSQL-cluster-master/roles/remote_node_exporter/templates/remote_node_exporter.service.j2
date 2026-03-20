@@ -1,0 +1,16 @@
+[Unit]
+Description=Remote Node Exporter
+After=network.target
+
+[Service]
+User=root
+Group=root
+ExecStart=/usr/sbin/remote_node_exporter --config.file=/etc/remote_node_exporter/remote_node_exporter.yml
+Restart=always
+RestartSec=10s
+NotifyAccess=all
+LimitNOFILE = 10000
+LimitNPROC = 10000
+
+[Install]
+WantedBy=multi-user.target

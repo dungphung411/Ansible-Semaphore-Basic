@@ -1,0 +1,14 @@
+remote_write:
+  - url: http://{{ ansible_host }}:8428/api/v1/write
+
+global:
+  scrape_interval:     5s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  evaluation_interval: 5s
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+       - "127.0.0.1:9093"
+rule_files:
+  - "/srv/prometheus/rules/*.yml"
