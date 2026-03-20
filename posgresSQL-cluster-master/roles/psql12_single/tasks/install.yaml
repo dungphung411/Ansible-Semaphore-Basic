@@ -14,7 +14,8 @@
   shell: "{{ item }}"
   with_items:
     - apt -qq install -y python3-pip
-    - pip3 install psycopg2-binary
+    - pip3 install psycopg2-binary --break-system-packages
+
 
 # 3) Kiểm tra trạng thái init của PostgreSQL:
 # - Nếu `postmaster.opts` tồn tại => DB đã được khởi tạo, skip các bước init/cài đặt.
