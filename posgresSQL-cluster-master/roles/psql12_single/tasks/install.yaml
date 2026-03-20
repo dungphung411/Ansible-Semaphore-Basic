@@ -127,25 +127,25 @@
   when:
     - p.stat.exists == False
 
-# 12) Render/copy các file cấu hình từ template `pg_config/`:
-# - Với file `.j2` thì `template` sẽ render,
-# - file khác được lấy theo cấu trúc `with_filetree`.
-- name: Copy pg_config file
-  template:
-    src: "{{ item.src }}"
-    dest: "{{ psql_conf_dir }}/{{ item.path | regex_replace('\\.j2$', '') }}"
-    force: yes
-    owner: postgres
-    group: postgres
-    mode: 0644
-  with_filetree: '{{ role_path }}/templates/pg_config/'
-  when: item.state == 'file'
+# # 12) Render/copy các file cấu hình từ template `pg_config/`:
+# # - Với file `.j2` thì `template` sẽ render,
+# # - file khác được lấy theo cấu trúc `with_filetree`.
+# - name: Copy pg_config file
+#   template:
+#     src: "{{ item.src }}"
+#     dest: "{{ psql_conf_dir }}/{{ item.path | regex_replace('\\.j2$', '') }}"
+#     force: yes
+#     owner: postgres
+#     group: postgres
+#     mode: 0644
+#   with_filetree: '{{ role_path }}/templates/pg_config/'
+#   when: item.state == 'file'
 
-# 13) Cập nhật unit file systemd cho PostgreSQL.
-- name: copy postgresql.service
-  template:
-    src: postgresql.service
-    dest: /lib/systemd/system/postgresql.service
+# # 13) Cập nhật unit file systemd cho PostgreSQL.
+# - name: copy postgresql.service
+#   template:
+#     src: postgresql.service
+#     dest: /lib/systemd/system/postgresql.service
 
 # 14) Reload systemd để unit file mới được nhận.
 - name: daemon reload service
@@ -153,12 +153,23 @@
     name: postgresql
     daemon_reload: yes
 
-# 15) Bật/khởi động service PostgreSQL.
-- name: Start postgresql service
-  service:
-    name: postgresql
-    enabled: no
+- name: Start PostgreSQL 18 main cluster
+  systemd:
+    name: postgresql  # ← Tên đúng cluster!
     state: started
+    enabled: yes
+  become: true
+
+
+  # 16) Verify running
+- name: Verify cluster status
+  shell: pg_lsclusters | grep online
+  register: pg_status
+  changed_when: false
+
+- name: Show status
+  debug:
+    var: pg_status.stdout
 
 # 16) Đợi PostgreSQL mở port để các bước phía sau có thể kết nối.
 - wait_for:
