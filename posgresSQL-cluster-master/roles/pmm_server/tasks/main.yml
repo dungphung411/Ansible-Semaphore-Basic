@@ -1,4 +1,4 @@
 ---
 - import_tasks: prerequisite.yml
-# - import_tasks: install_docker.yml
-# - import_tasks: install_pmm_server.yml
+- import_tasks: install_docker.yml
+- import_tasks: install_pmm_server.yml
