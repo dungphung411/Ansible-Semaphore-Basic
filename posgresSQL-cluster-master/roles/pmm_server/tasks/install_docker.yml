@@ -10,7 +10,14 @@
     name: python3-pip
     state: present
 
-- name: Make sure psycopg2 is installed
+# - name: Make sure psycopg2 is installed
+#   pip:
+#     name: docker
+#     state: latest
+
+- name: Install Docker Python SDK for PostgreSQL management
   pip:
     name: docker
     state: latest
+    extra_args: --break-system-packages
+  
