@@ -4,7 +4,7 @@
 - name: Load docker images  
   shell: |
     cd /mon/pkgs
-    docker load -i pmm-server-3.6.0.docker
+    docker load -i pmm-server-3.6.0.tar
     docker images
   register: output
   tags: load-images
