@@ -1,0 +1,35 @@
+*.tar
+
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.swp
+
+# Logs
+*.log
+# Node modules
+node_modules/
+
+# Compiled object files
+*.o
+*.obj
+*.dll
+*.exe
+*.out
+*.app
+
+# Other common ignores
+*.bak
+*.tmp
