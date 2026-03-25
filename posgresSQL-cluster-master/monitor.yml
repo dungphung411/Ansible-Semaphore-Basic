@@ -16,51 +16,51 @@
     - name: pmm_server
       when: out.stdout!="percona"
 
-- name: install remote node exporter
-  hosts: monitor
-  become: yes
-  roles:
-    - remote_node_exporter
+# - name: install remote node exporter
+#   hosts: monitor
+#   become: yes
+#   roles:
+#     - remote_node_exporter
 
-- name: install database exporter
-  hosts: monitor
-  become: yes
-  roles:
-    - postgre_exporter
+# - name: install database exporter
+#   hosts: monitor
+#   become: yes
+#   roles:
+#     - postgre_exporter
 
-- name: create user, grant group and upload dashboard
-  hosts: monitor
-  become: yes
-  roles:
-    - upload_dashboard
+# - name: create user, grant group and upload dashboard
+#   hosts: monitor
+#   become: yes
+#   roles:
+#     - upload_dashboard
 
-- name: refesh
-  hosts: monitor
-  become: yes
-  tasks:
-    - name: restart docker
-      shell: docker restart pmm-server
+# - name: refesh
+#   hosts: monitor
+#   become: yes
+#   tasks:
+#     - name: restart docker
+#       shell: docker restart pmm-server
 
-- name: add prometheus configure
-  hosts: monitor
-  become: yes
-  roles:
-    - name: prometheus
-      when:
-      - alert_email == "yes" or alert_slack == "yes" or alert_telegram == "yes"
+# - name: add prometheus configure
+#   hosts: monitor
+#   become: yes
+#   roles:
+#     - name: prometheus
+#       when:
+#       - alert_email == "yes" or alert_slack == "yes" or alert_telegram == "yes"
 
-- name: add prometheus configure
-  hosts: monitor
-  become: yes
-  roles:
-    - name: prometheus_ms_teams
-      when:
-      - alert_teams == "yes"
+# - name: add prometheus configure
+#   hosts: monitor
+#   become: yes
+#   roles:
+#     - name: prometheus_ms_teams
+#       when:
+#       - alert_teams == "yes"
 
-- name: add alertmanager configure 
-  hosts: monitor
-  become: yes
-  roles:
-    - name: alertmanager
-      when:
-      - alert_teams == "yes" or alert_email == "yes" or alert_slack == "yes" or alert_telegram == "yes"
+# - name: add alertmanager configure 
+#   hosts: monitor
+#   become: yes
+#   roles:
+#     - name: alertmanager
+#       when:
+#       - alert_teams == "yes" or alert_email == "yes" or alert_slack == "yes" or alert_telegram == "yes"
